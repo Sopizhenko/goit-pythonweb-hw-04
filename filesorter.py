@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Асинхронний сортувальник файлів, який розподіляє файли по папках на основі їх розширень.
+Asynchronous file sorter that distributes files into folders based on their extensions.
 """
 
 import os
@@ -11,7 +11,7 @@ import argparse
 from pathlib import Path
 
 
-# Налаштування логування
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -22,26 +22,26 @@ logger = logging.getLogger(__name__)
 
 async def copy_file(source_path, dest_folder):
     """
-    Асинхронно копіює файл з вихідної папки до папки призначення на основі розширення файлу.
+    Asynchronously copies a file from the source folder to the destination folder based on the file extension.
 
     Args:
-        source_path (Path): Шлях до вихідного файлу
-        dest_folder (Path): Базова папка призначення
+        source_path (Path): Path to the source file
+        dest_folder (Path): Base destination folder
     """
     try:
-        # Отримуємо розширення файлу (без крапки) або 'no_extension' якщо розширення відсутнє
+        # Get file extension (without dot) or 'no_extension' if none exists
         file_ext = (
             source_path.suffix[1:].lower() if source_path.suffix else "no_extension"
         )
 
-        # Створюємо підпапку для цього розширення, якщо вона ще не існує
+        # Create subfolder for this extension if it doesn't exist yet
         ext_folder = dest_folder / file_ext
         os.makedirs(ext_folder, exist_ok=True)
 
-        # Формуємо шлях призначення
+        # Construct destination path
         dest_path = ext_folder / source_path.name
 
-        # Перевірка на випадок, якщо файл уже існує
+        # Check if file already exists
         if dest_path.exists():
             base_name = source_path.stem
             suffix = source_path.suffix
@@ -51,70 +51,72 @@ async def copy_file(source_path, dest_folder):
                 dest_path = ext_folder / new_name
                 counter += 1
 
-        # Асинхронне читання та запис файлу
+        # Asynchronous file reading and writing
         loop = asyncio.get_event_loop()
 
-        # Читаємо дані з вихідного файлу
+        # Read data from source file
         with open(source_path, "rb") as src_file:
             content = await loop.run_in_executor(None, src_file.read)
 
-        # Записуємо дані у файл призначення
+        # Write data to destination file
         with open(dest_path, "wb") as dest_file:
             await loop.run_in_executor(None, dest_file.write, content)
 
-        logger.info(f"Скопійовано: {source_path} -> {dest_path}")
+        logger.info(f"Copied: {source_path} -> {dest_path}")
 
     except Exception as e:
-        logger.error(f"Помилка копіювання файлу {source_path}: {str(e)}")
+        logger.error(f"Error copying file {source_path}: {str(e)}")
 
 
 async def read_folder(source_folder, dest_folder, recursive=True):
     """
-    Асинхронно читає всі файли у вихідній папці та її підпапках.
+    Asynchronously reads all files in the source folder and its subfolders.
 
     Args:
-        source_folder (Path): Шлях до вихідної папки
-        dest_folder (Path): Шлях до папки призначення
-        recursive (bool): Чи обробляти підпапки рекурсивно
+        source_folder (Path): Path to the source folder
+        dest_folder (Path): Path to the destination folder
+        recursive (bool): Whether to process subfolders recursively
     """
     try:
         tasks = []
 
-        # Рекурсивно обходимо всі файли в папці
+        # Recursively iterate through all files in the folder
         for item in source_folder.iterdir():
             if item.is_file():
-                # Для кожного файлу створюємо завдання на копіювання
+                # Create a copying task for each file
                 task = asyncio.create_task(copy_file(item, dest_folder))
                 tasks.append(task)
             elif item.is_dir() and recursive:
-                # Рекурсивно обробляємо підпапки
+                # Recursively process subfolders
                 subtask = asyncio.create_task(read_folder(item, dest_folder, recursive))
                 tasks.append(subtask)
 
-        # Чекаємо завершення всіх завдань
+        # Wait for all tasks to complete
         if tasks:
             await asyncio.gather(*tasks)
 
     except Exception as e:
-        logger.error(f"Помилка читання папки {source_folder}: {str(e)}")
+        logger.error(f"Error reading folder {source_folder}: {str(e)}")
 
 
 async def main():
     """
-    Головна асинхронна функція, яка обробляє аргументи та запускає сортування файлів.
+    Main asynchronous function that processes arguments and starts file sorting.
     """
     parser = argparse.ArgumentParser(
-        description="Асинхронний сортувальник файлів за розширеннями."
+        description="Asynchronous file sorter by extensions."
     )
-    parser.add_argument("-s", "--source", required=True, help="Вихідна папка з файлами")
+    parser.add_argument(
+        "-s", "--source", required=True, help="Source folder with files"
+    )
     parser.add_argument(
         "-d",
         "--destination",
         required=True,
-        help="Папка призначення для сортованих файлів",
+        help="Destination folder for sorted files",
     )
     parser.add_argument(
-        "-r", "--recursive", action="store_true", help="Рекурсивно обробляти підпапки"
+        "-r", "--recursive", action="store_true", help="Process subfolders recursively"
     )
 
     args = parser.parse_args()
@@ -122,22 +124,22 @@ async def main():
     source_path = Path(args.source)
     dest_path = Path(args.destination)
 
-    # Перевірка вхідних даних
+    # Input validation
     if not source_path.exists() or not source_path.is_dir():
-        logger.error(f"Вихідна папка не існує або не є папкою: {source_path}")
+        logger.error(f"Source folder doesn't exist or is not a folder: {source_path}")
         return
 
-    # Створюємо папку призначення, якщо вона не існує
+    # Create destination folder if it doesn't exist
     os.makedirs(dest_path, exist_ok=True)
 
-    logger.info(f"Початок сортування файлів з {source_path} до {dest_path}")
+    logger.info(f"Starting file sorting from {source_path} to {dest_path}")
 
-    # Запускаємо читання папки
+    # Start folder reading
     await read_folder(source_path, dest_path, args.recursive)
 
-    logger.info("Сортування файлів завершено")
+    logger.info("File sorting completed")
 
 
 if __name__ == "__main__":
-    # Запускаємо головну асинхронну функцію
+    # Run the main asynchronous function
     asyncio.run(main())
